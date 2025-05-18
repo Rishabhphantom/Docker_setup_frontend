@@ -1,3 +1,6 @@
+**please update the packages in this folder to gain the full benefits**
+**npm install**
+
 # React Frontend (Dockerized)
 
 This is a Dockerized React frontend application served via Nginx. It connects to a Node.js backend running on port 4000.

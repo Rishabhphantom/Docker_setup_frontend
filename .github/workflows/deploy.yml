@@ -1,0 +1,49 @@
+name: CI/CD Pipeline - Frontend Only
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-deploy-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: AKIAWNHTG72TTKF5LAED
+          aws-secret-access-key: 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
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Frontend Docker Image
+        run: |
+          docker build -t 440744214183.dkr.ecr.us-east-1.amazonaws.com/my-frontend-app:latest -f react-frontend/Dockerfile .
+
+      - name: Push Frontend Image to ECR
+        run: |
+          docker push 440744214183.dkr.ecr.us-east-1.amazonaws.com/my-frontend-app:latest
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: 54.91.97.227
+          username: ubuntu
+          key: ubuntu.pem
+          script: |
+            cd /home/ubuntu/myapp
+            echo "Pulling latest frontend image..."
+            docker pull 440744214183.dkr.ecr.us-east-1.amazonaws.com/my-frontend-app:latest
+
+            echo "Stopping old frontend container..."
+            docker-compose down
+
+            echo "Starting new frontend container..."
+            docker-compose up -d

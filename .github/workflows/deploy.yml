@@ -46,27 +46,31 @@ jobs:
             docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-frontend:latest
             docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest
 
-            # Stop and remove existing containers
-            echo "Stopping and removing old containers..."
+            # Stop and remove old containers
+            echo "Stopping old containers..."
             docker stop frontend-app || true
             docker rm frontend-app || true
-
             docker stop backend-api || true
             docker rm backend-api || true
 
-            # Run new containers
-            echo "Starting new containers..."
+            # Write environment files
+            echo "${{ secrets.FRONTEND_ENV }}" > /home/ubuntu/frontend.env
+            echo "${{ secrets.BACKEND_ENV }}" > /home/ubuntu/backend.env
 
-            # Run backend first
+            # Run backend container
+            echo "Starting backend container..."
             docker run -d \
               --name backend-api \
-              -p 5000:5000 \
+              -p 4000:4000 \
+              --env-file /home/ubuntu/backend.env \
               ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest
 
-            # Run frontend, assuming it connects to backend via localhost:5000
+            # Run frontend container
+            echo "Starting frontend container..."
             docker run -d \
               --name frontend-app \
               -p 3000:80 \
+              --env-file /home/ubuntu/frontend.env \
               ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-frontend:latest
 
-            echo "Deployment complete!"
+            echo "Deployment completed successfully!"

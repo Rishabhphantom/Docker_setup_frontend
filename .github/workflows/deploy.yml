@@ -29,11 +29,6 @@ jobs:
           docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-frontend:latest -f frontend/Dockerfile .
           docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-frontend:latest
 
-      - name: Build and Push Backend Image
-        run: |
-          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest -f backend/Dockerfile .
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest
-
       - name: SSH into EC2 and Redeploy Containers
         uses: appleboy/ssh-action@master
         with:
@@ -44,7 +39,6 @@ jobs:
             # Pull latest images
             echo "Pulling latest Docker images..."
             docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-frontend:latest
-            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest
 
             # Stop and remove old containers
             echo "Stopping old containers..."
@@ -55,15 +49,6 @@ jobs:
 
             # Write environment files
             echo "${{ secrets.FRONTEND_ENV }}" > /home/ubuntu/frontend.env
-            echo "${{ secrets.BACKEND_ENV }}" > /home/ubuntu/backend.env
-
-            # Run backend container
-            echo "Starting backend container..."
-            docker run -d \
-              --name backend-api \
-              -p 4000:4000 \
-              --env-file /home/ubuntu/backend.env \
-              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest
 
             # Run frontend container
             echo "Starting frontend container..."

@@ -1,4 +1,4 @@
-name: CI/CD Pipeline - Frontend Only
+name: Deploy App via Docker
 
 on:
   push:
@@ -6,44 +6,67 @@ on:
       - main
 
 jobs:
-  build-deploy-frontend:
+  build-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v3
         with:
-          aws-access-key-id: AKIAWNHTG72TTKF5LAED
-          aws-secret-access-key: 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
-          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build Frontend Docker Image
+      - name: Build and Push Frontend Image
         run: |
-          docker build -t 440744214183.dkr.ecr.us-east-1.amazonaws.com/my-frontend-app:latest -f react-frontend/Dockerfile .
+          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-frontend:latest -f frontend/Dockerfile .
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-frontend:latest
 
-      - name: Push Frontend Image to ECR
+      - name: Build and Push Backend Image
         run: |
-          docker push 440744214183.dkr.ecr.us-east-1.amazonaws.com/my-frontend-app:latest
+          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest -f backend/Dockerfile .
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest
 
-      - name: Deploy to EC2 via SSH
+      - name: SSH into EC2 and Redeploy Containers
         uses: appleboy/ssh-action@master
         with:
-          host: 54.91.97.227
+          host: ${{ secrets.EC2_IP_ADDRESS }}
           username: ubuntu
-          key: ubuntu.pem
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
-            cd /home/ubuntu/myapp
-            echo "Pulling latest frontend image..."
-            docker pull 440744214183.dkr.ecr.us-east-1.amazonaws.com/my-frontend-app:latest
+            # Pull latest images
+            echo "Pulling latest Docker images..."
+            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-frontend:latest
+            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest
 
-            echo "Stopping old frontend container..."
-            docker-compose down
+            # Stop and remove existing containers
+            echo "Stopping and removing old containers..."
+            docker stop frontend-app || true
+            docker rm frontend-app || true
 
-            echo "Starting new frontend container..."
-            docker-compose up -d
+            docker stop backend-api || true
+            docker rm backend-api || true
+
+            # Run new containers
+            echo "Starting new containers..."
+
+            # Run backend first
+            docker run -d \
+              --name backend-api \
+              -p 5000:5000 \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-backend:latest
+
+            # Run frontend, assuming it connects to backend via localhost:5000
+            docker run -d \
+              --name frontend-app \
+              -p 3000:80 \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-frontend:latest
+
+            echo "Deployment complete!"
